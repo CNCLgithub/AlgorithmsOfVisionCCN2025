@@ -1,0 +1,22 @@
+name = "AlgorithmsOfVisionCCN2025"
+uuid = "850238c8-5433-48a7-8e2c-ad2fbc2eb2f0"
+authors = ["belledon <mbelledonne@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
+Gen = "ea4f424c-a589-11e8-07c0-fd5c91b9da4a"
+PhyBullet = "63daae69-5b14-439d-ac6f-096429ca839b"
+PhySMC = "79c1e2f5-7911-41a0-b248-4858717ddd79"
+Pluto = "c3e4b0f8-55cb-11ea-2926-15256bba5781"
+PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+
+[compat]
+Conda = "1.10.2"
+Gen = "0.4.8"
+PhyBullet = "0.1.0"
+PhySMC = "0.1.0"
+Pluto = "0.20.13"
+PyCall = "1.96.4"
+Revise = "3.8.1"
