@@ -8,19 +8,21 @@ using InteractiveUtils
 begin
     import Pkg
     # activate the shared project environment
-    Pkg.activate(Base.current_project())
+    Pkg.activate(mktempdir())
     # instantiate, i.e. make sure that all packages are downloaded
     Pkg.instantiate()
-    using Conda, Pkg
+	Pkg.add("Conda")
+    using Conda
 	Conda.add("pybullet", :AglorithmsOfVisionCCN2025)
 	pythonpath = joinpath(Conda.ROOTENV, "envs", "AglorithmsOfVisionCCN2025", "bin", "python")
 	ENV["PYTHON"] = pythonpath
+	Pkg.add("PyCall")
 	Pkg.build("PyCall")
-	using PyCall
+	Pkg.add("Gen")
+	Pkg.add(url="https://github.com/CNCLgithub/PhySMC.git")
+	Pkg.add(url="https://github.com/CNCLgithub/PhyBullet.git")
+	using PyCall, PhySMC, PhyBullet, Gen
 end
-
-# ╔═╡ 4bf8c114-a49b-496e-81eb-9b30841c021f
-using PhySMC, PhyBullet
 
 # ╔═╡ 001f5f82-b18f-4a1a-9be6-ac44d66fde21
 pybullet = PyCall.pyimport("pybullet")
@@ -72,7 +74,6 @@ client, ball = simple_scene()
 # ╔═╡ Cell order:
 # ╠═71eb1272-37f5-48db-b516-8e5bdbac8d7e
 # ╠═001f5f82-b18f-4a1a-9be6-ac44d66fde21
-# ╠═4bf8c114-a49b-496e-81eb-9b30841c021f
 # ╠═fc18c3c3-6d4b-4d7f-a52f-665e472c9116
 # ╠═1d5eec5b-6eef-489b-a08c-a54346e60d5d
 # ╠═4624cb2b-5767-4899-8991-560b74d10177
