@@ -5,6 +5,7 @@ using Markdown
 using InteractiveUtils
 
 # ╔═╡ 71eb1272-37f5-48db-b516-8e5bdbac8d7e
+# Loads required packages
 begin
     import Pkg
     # activate the project environment
@@ -32,11 +33,6 @@ begin
 	using PyCall, PhySMC, PhyBullet, Gen, Accessors, Distributions, Plots
 end
 
-# ╔═╡ d1678c83-d8cd-4b2c-8257-ff72300dcf00
-md"""
-> Preamble
-"""
-
 # ╔═╡ 4624cb2b-5767-4899-8991-560b74d10177
 md"""
 # Inference by reversing physical simulation
@@ -55,11 +51,11 @@ Specifically, we will observe a sequence of the positions of a falling and bounc
 md"""
 ## Part 1: The Physical Generative Model
 
-The generative model (`model`) consists of a hypothesis over objects in the scene and uses the `bullet` physics engine to produce a sequence of predictions about the object state across time.
+The generative model (`model`) consists of a hypothesis over objects in the scene and uses the [bullet3 physics engine](https://github.com/bulletphysics/bullet3) to produce a sequence of predictions about the object state across time.
 
 This part will codify the following diagram in a generative model -- we will remain at an abstract level not yet thinking about exactly what we are simulating. We will make things concrete in Part 2.
 
-![physical markov chain](https://raw.githubusercontent.com/CNCLgithub/Algorithms-of-the-Mind/ec1ea73cc9cdd8dd198321221826fa6802bd7c51/labs/lab-06/media/phys_gm.png)
+![physical markov chain](https://raw.githubusercontent.com/CNCLgithub/AlgorithmsOfVisionCCN2025/refs/heads/bouncing_ball/physics_chain.svg)
 
 The generative model is split up into several small generative functions:
 
@@ -224,7 +220,7 @@ Ok, with the model ready, I bet you are itching to run some samples! First, we w
 
 # ╔═╡ deeb7dd7-89fa-4b7c-ba99-a01dad2b970d
 md"""
-## The Physical Domain
+## Part 2: The Physical Domain
 
 To make the model concrete in a physical scenario, all we need to do is to initialize a scene configuration, which can then be simulated forward.
 
@@ -403,11 +399,11 @@ gif(animate_traces(traces), fps=24)
 
 # ╔═╡ 5df4fbbb-f483-428b-8e2c-f09a7b69a0ca
 md"""
-## Inference Over Dynamic Scenes
+## Part 3: Inference Over Dynamic Scenes
 
 Now that we have implemented a generative model over the table scene, we can perform inferences in it given a set of observed positions
 
-Let's generate a trajectory, and extract its noisy positions. 
+Let's generate a trajectory, and extract its noisy positions. These will serve as our observations. Take note of the ground truth latents for mass and restitution - we will ultimately want to compare the inferences of our model to these values.
 """
 
 # ╔═╡ e21377fc-d136-4cac-9914-299acac72109
@@ -436,6 +432,32 @@ begin
 	gif(animate_trace(gt), fps=24)
 end
 
+# ╔═╡ db29e242-5029-48be-a76c-b0868060cc1c
+md"""
+## The inference procedure - A particle filter
+
+Due the sequential nature of physical scenes, a natural choice for an inference procedure is the [particle filter](https://www.stats.ox.ac.uk/~doucet/smc_resources.html)
+
+Each particle is an independent trace of the generative model, conditioned on the observations received so far. Together these particles form a non-parametric approximation of an importance distribution over the posterior of world states.
+
+For each incoming observation, the particle fitler has three steps:
+
+1. **Update**: each particle samples (via `kernel`) the next state of the scene, $S_{t+1}$, weighting both the prior probability of that transition $Pr(S_{t+1} \mid S_t)$ as well as the evidence $Pr(X_{t+1} \mid S_{t+1})$. 
+2. **Resample**: A genetic pruning procedure, where particles are drawn, with replacement, from a multinomial distribution based on the normalized log-scores from step 1.
+3. **Rejuvination**: Each surviving particle recieves a series of MCMC moves using a `proposal` function, making adjustments to object latents, and keeping the better ones according to the [Metropolis-Hastings acceptance function](https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm). 
+"""
+
+# ╔═╡ 733276b9-7f00-432c-bf7e-fb9e8058892d
+md"""
+### The proposal function
+
+Let's start with the `proposal` function. This gets used during the rejuvination phase of the particle filter.
+
+The function takes a trace of the model and draws a sample for mass and resitution around the current guess in the trace. 
+
+Note that the proposal uses a truncated normal distribution to prevent certain values that would not make sense in the current context.
+"""
+
 # ╔═╡ 8a605295-3865-4fca-bef0-ca9172d3882e
 begin
 	"""A truncated normal distribution"""
@@ -460,7 +482,9 @@ end
 
 # ╔═╡ 3658e062-b85e-4692-83c4-5846da10b624
 """
-This proposal function implements a truncated random walk for mass and restitution
+This proposal function implements a random walk for mass and restitution.
+
+The internal distribution is truncated to prevent physically impossible values (e.g., negative mass).
 """
 @gen function proposal(tr::Gen.Trace)
     # HINT: https://www.gen.dev/tutorials/iterative-inference/tutorial#mcmc-2
@@ -472,7 +496,7 @@ This proposal function implements a truncated random walk for mass and restituti
     
     # sample new values conditioned on the old ones
     # (Note: values are truncated to avoid issues with simulation)
-    mass = {:latents => 1 => :mass} ~ trunc_norm(prev_mass, .1, 0., Inf)
+    mass = {:latents => 1 => :mass} ~ trunc_norm(prev_mass, 1.0, 0., Inf)
     restitution = {:latents => 1 => :restitution} ~ trunc_norm(prev_res, .1, 0., 1.)
     
     # the return of this function is not
@@ -480,6 +504,15 @@ This proposal function implements a truncated random walk for mass and restituti
     # for debugging.
     return (mass, restitution)
 end
+
+# ╔═╡ f303dbb1-1b59-4712-b197-eb2f6c7c9ad0
+md"""
+### The particle filter "for loop"
+
+With the proposal defined, we can now implement the particle filter. 
+
+Gen already provides an implementation for steps 1 and 2, we just need to put them all together.
+"""
 
 # ╔═╡ d85a0ed5-341c-43d5-bef1-092d3daadd2e
 """
@@ -489,7 +522,8 @@ Performs particle filter inference with rejuvenation.
 """
 function inference_procedure(gm_args::Tuple,
                              obs::Vector{Gen.ChoiceMap},
-                             particles::Int=20)
+                             particles::Int=20,
+							 rejuv_moves::Int=2)
     get_args(t) = (t, gm_args[2:3]...)
 
     # initialize particle filter
@@ -498,27 +532,43 @@ function inference_procedure(gm_args::Tuple,
     
     # Then increment through each observation step
     for (t, o) = enumerate(obs)
-        # apply a rejuvenation move to each particle
-        step_time = @elapsed begin
-            for i=1:particles
-                state.traces[i], _ = mh(state.traces[i], proposal, ())
-            end
-        
-            Gen.maybe_resample!(state, ess_threshold=particles/2) 
-            Gen.particle_filter_step!(state, get_args(t), argdiffs, o)
-        end
+		# Step 1: update
+		Gen.particle_filter_step!(state, get_args(t), argdiffs, o)
+		# Step 2: resample
+		 Gen.maybe_resample!(state, ess_threshold=particles/2) 
+        # Step 3: rejuvination
+        for i=1:particles, s=1:rejuv_moves
+            state.traces[i], _ = mh(state.traces[i], proposal, ())
+		end
     end
 
-    return state.traces
+    # return state.traces
     # return the "unweighted" set of traces after t steps
-    # return Gen.sample_unweighted_traces(state, particles)
+    return Gen.sample_unweighted_traces(state, particles)
 end
+
+# ╔═╡ f7ef47b3-1c52-4e8f-a4b4-7ef2a4bf83f1
+md"""
+### Inference Results
+"""
 
 # ╔═╡ ba80f8f7-afb7-4ecb-94d0-904c2a777512
 result = inference_procedure(gargs, observations); #should take a few seconds
 
+# ╔═╡ 87aa3c1c-4ce4-4b6f-ab6a-7b889c526e96
+md"""
+To visualize inference results, lets animate each particle after conditioning on all observations.
+"""
+
 # ╔═╡ c410e103-76ee-4b15-8172-a091c509fe42
 gif(animate_traces(result), fps=24)
+
+# ╔═╡ fa120fc0-9193-4c88-a80f-e4fea8a5827a
+md"""
+Recall the inference task, we wanted to infer the mass and restitution of the object given the series of noisy position observations. 
+
+Let's look at the marginal of each latent - that is the distribution of restitution considering any value of mass, and vice-versa. 
+"""
 
 # ╔═╡ dfc169c5-c89d-487f-af59-3e2b2c9a7277
 begin
@@ -540,6 +590,7 @@ begin
 	        restitution, title="Pr(restitution | Xs)", 
 	        xlabel="restitution", label="traces",
 			xlims = (0., 1.0),
+			bins=3
 	    )
 	    vline!(res_plt, [0.8], label = "gt", linewidth=3) 
 	    mass_plt = histogram(
@@ -554,9 +605,15 @@ begin
 	     
 end
 
+# ╔═╡ 72319312-100b-4053-aafa-4ba20acf4998
+md"""
+Note how resitution is almost dead on the ground truth (0.8), whereas mass is all over the place (the ground truth was 1.0). 
+
+Why is this the case? 
+"""
+
 # ╔═╡ Cell order:
-# ╟─d1678c83-d8cd-4b2c-8257-ff72300dcf00
-# ╠═71eb1272-37f5-48db-b516-8e5bdbac8d7e
+# ╟─71eb1272-37f5-48db-b516-8e5bdbac8d7e
 # ╟─4624cb2b-5767-4899-8991-560b74d10177
 # ╟─7ebb39fe-451c-4f10-811f-3cdde5f71a55
 # ╟─0ba6a7ef-fd6c-4f80-a611-c4774a1767b4
@@ -591,17 +648,24 @@ end
 # ╟─bda887d9-d24c-47c7-83e7-ab51991ef573
 # ╠═dc605663-fc83-404a-93b0-ca3d48abbf85
 # ╟─8493e9f1-e248-4672-8386-b0cc0de1ef40
-# ╠═6289ed15-e159-4760-b748-1228cf919bfd
-# ╠═bdfef339-82cc-40a2-951e-0d835003c13a
+# ╟─6289ed15-e159-4760-b748-1228cf919bfd
+# ╟─bdfef339-82cc-40a2-951e-0d835003c13a
 # ╟─e642e7a7-b1ff-4136-84fe-c914dd74b911
 # ╠═407b3a7c-4b70-46cb-ab9b-da5f297dbb4a
-# ╠═4588488f-83c8-4880-9290-463c7c7b0b9f
+# ╟─4588488f-83c8-4880-9290-463c7c7b0b9f
 # ╠═bd481c82-99c7-44aa-b9c7-11dacb231070
 # ╟─5df4fbbb-f483-428b-8e2c-f09a7b69a0ca
 # ╠═e21377fc-d136-4cac-9914-299acac72109
-# ╠═8a605295-3865-4fca-bef0-ca9172d3882e
+# ╟─db29e242-5029-48be-a76c-b0868060cc1c
+# ╟─733276b9-7f00-432c-bf7e-fb9e8058892d
+# ╟─8a605295-3865-4fca-bef0-ca9172d3882e
 # ╠═3658e062-b85e-4692-83c4-5846da10b624
+# ╟─f303dbb1-1b59-4712-b197-eb2f6c7c9ad0
 # ╠═d85a0ed5-341c-43d5-bef1-092d3daadd2e
+# ╟─f7ef47b3-1c52-4e8f-a4b4-7ef2a4bf83f1
 # ╠═ba80f8f7-afb7-4ecb-94d0-904c2a777512
+# ╟─87aa3c1c-4ce4-4b6f-ab6a-7b889c526e96
 # ╠═c410e103-76ee-4b15-8172-a091c509fe42
-# ╠═dfc169c5-c89d-487f-af59-3e2b2c9a7277
+# ╟─fa120fc0-9193-4c88-a80f-e4fea8a5827a
+# ╟─dfc169c5-c89d-487f-af59-3e2b2c9a7277
+# ╟─72319312-100b-4053-aafa-4ba20acf4998
