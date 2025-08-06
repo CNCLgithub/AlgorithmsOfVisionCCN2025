@@ -401,7 +401,7 @@ gif(animate_traces(traces), fps=24)
 md"""
 ## Part 3: Inference Over Dynamic Scenes
 
-Now that we have implemented a generative model over the table scene, we can perform inferences in it given a set of observed positions
+Now that we have implemented a generative model over the table scene, we can perform inferences in it given a set of observed positions.
 
 Let's generate a trajectory, and extract its noisy positions. These will serve as our observations. Take note of the ground truth latents for mass and restitution - we will ultimately want to compare the inferences of our model to these values.
 """
@@ -440,11 +440,11 @@ Due the sequential nature of physical scenes, a natural choice for an inference 
 
 Each particle is an independent trace of the generative model, conditioned on the observations received so far. Together these particles form a non-parametric approximation of an importance distribution over the posterior of world states.
 
-For each incoming observation, the particle fitler has three steps:
+For each incoming observation, the particle filter has three steps:
 
-1. **Update**: each particle samples (via `kernel`) the next state of the scene, $S_{t+1}$, weighting both the prior probability of that transition $Pr(S_{t+1} \mid S_t)$ as well as the evidence $Pr(X_{t+1} \mid S_{t+1})$. 
+1. **Update**: Each particle samples (via `kernel`) the next state of the scene, $S_{t+1}$, weighting both the prior probability of that transition $Pr(S_{t+1} \mid S_t)$ and the evidence $Pr(X_{t+1} \mid S_{t+1})$. 
 2. **Resample**: A genetic pruning procedure, where particles are drawn, with replacement, from a multinomial distribution based on the normalized log-scores from step 1.
-3. **Rejuvination**: Each surviving particle recieves a series of MCMC moves using a `proposal` function, making adjustments to object latents, and keeping the better ones according to the [Metropolis-Hastings acceptance function](https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm). 
+3. **Rejuvination**: Each surviving particle receives a series of MCMC moves using a `proposal` function, making adjustments to object latents, and keeping the better ones according to the [Metropolis-Hastings acceptance function](https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm). 
 """
 
 # ╔═╡ 733276b9-7f00-432c-bf7e-fb9e8058892d
@@ -453,7 +453,7 @@ md"""
 
 Let's start with the `proposal` function. This gets used during the rejuvination phase of the particle filter.
 
-The function takes a trace of the model and draws a sample for mass and resitution around the current guess in the trace. 
+The function takes a trace of the model and draws a sample for mass and restitution around the current guess in the trace. 
 
 Note that the proposal uses a truncated normal distribution to prevent certain values that would not make sense in the current context.
 """
@@ -535,7 +535,7 @@ function inference_procedure(gm_args::Tuple,
 		# Step 1: update
 		Gen.particle_filter_step!(state, get_args(t), argdiffs, o)
 		# Step 2: resample
-		 Gen.maybe_resample!(state, ess_threshold=particles/2) 
+		Gen.maybe_resample!(state, ess_threshold=particles/2) 
         # Step 3: rejuvination
         for i=1:particles, s=1:rejuv_moves
             state.traces[i], _ = mh(state.traces[i], proposal, ())
@@ -565,9 +565,9 @@ gif(animate_traces(result), fps=24)
 
 # ╔═╡ fa120fc0-9193-4c88-a80f-e4fea8a5827a
 md"""
-Recall the inference task, we wanted to infer the mass and restitution of the object given the series of noisy position observations. 
+Recall the inference task: We wanted to infer the mass and restitution of the object given the series of noisy position observations. 
 
-Let's look at the marginal of each latent - that is the distribution of restitution considering any value of mass, and vice-versa. 
+Let's look at the marginal of each latent -- that is the distribution of restitution considering any value of mass, and vice versa. 
 """
 
 # ╔═╡ dfc169c5-c89d-487f-af59-3e2b2c9a7277
