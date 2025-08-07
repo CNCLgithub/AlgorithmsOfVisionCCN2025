@@ -617,11 +617,13 @@ Pr(\vec{S} \mid \vec{X}) = Pr(S_0) \cdot \prod\limits_{t=1}^{T} Pr(S_t \mid X_t)
 
 Each particle is an independent trace of the generative model, conditioned on the observations received so far. Together these particles form a non-parametric approximation of an importance distribution over the posterior of world states.
 
-For each incoming observation, the particle filter has three steps:
+For each incoming observation, the particle fitler has three steps:
 
-1. **Update**: Each particle samples (via `kernel`) the next state of the scene, $S_{t+1}$, weighting both the prior probability of that transition $Pr(S_{t+1} \mid S_t)$ and the evidence $Pr(X_{t+1} \mid S_{t+1})$. 
+![Particle filter diagram](https://raw.githubusercontent.com/CNCLgithub/AlgorithmsOfVisionCCN2025/refs/heads/bouncing_ball/particle_filter.svg)
+
+1. **Update**: each particle samples (via `kernel`) the next state of the scene, $S_{t+1}$, weighting both the prior probability of that transition $Pr(S_{t+1} \mid S_t)$ as well as the evidence $Pr(X_{t+1} \mid S_{t+1})$. 
 2. **Resample**: A genetic pruning procedure, where particles are drawn, with replacement, from a multinomial distribution based on the normalized log-scores from step 1.
-3. **Rejuvination**: Each surviving particle receives a series of MCMC moves using a `proposal` function, making adjustments to object latents, and keeping the better ones according to the [Metropolis-Hastings acceptance function](https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm). 
+3. **Rejuvination**: Each surviving particle recieves a series of MCMC moves using a `proposal` function, making adjustments to object latents, and keeping the better ones according to the [Metropolis-Hastings acceptance function](https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm). 
 """
 
 # ╔═╡ 733276b9-7f00-432c-bf7e-fb9e8058892d
@@ -630,7 +632,7 @@ md"""
 
 Let's start with the `proposal` function. This gets used during the rejuvination phase of the particle filter.
 
-The function takes a trace of the model and draws a sample for mass and restitution around the current guess in the trace. 
+The function takes a trace of the model and draws a sample for mass and resitution around the current guess in the trace. 
 
 Note that the proposal uses a truncated normal distribution to prevent certain values that would not make sense in the current context.
 """
@@ -709,11 +711,11 @@ function inference_procedure(gm_args::Tuple,
     
     # Then increment through each observation step
     for (t, o) = enumerate(obs)
-		# Step 1: update
+		# STEP 1: update
 		Gen.particle_filter_step!(state, get_args(t), argdiffs, o)
-		# Step 2: resample
-		Gen.maybe_resample!(state, ess_threshold=particles/2) 
-        # Step 3: rejuvination
+		# STEP 2: resample
+		 Gen.maybe_resample!(state, ess_threshold=particles/2) 
+        # STEP 3: rejuvination
         for i=1:particles, s=1:rejuv_moves
             state.traces[i], _ = mh(state.traces[i], proposal, ())
 		end
@@ -742,9 +744,9 @@ gif(animate_traces(result), fps=24)
 
 # ╔═╡ fa120fc0-9193-4c88-a80f-e4fea8a5827a
 md"""
-Recall the inference task: We wanted to infer the mass and restitution of the object given the series of noisy position observations. 
+Recall the inference task, we wanted to infer the mass and restitution of the object given the series of noisy position observations. 
 
-Let's look at the marginal of each latent -- that is the distribution of restitution considering any value of mass, and vice versa. 
+Let's look at the marginal of each latent - that is the distribution of restitution considering any value of mass, and vice-versa. 
 """
 
 # ╔═╡ dfc169c5-c89d-487f-af59-3e2b2c9a7277
@@ -789,6 +791,19 @@ Note how resitution is almost dead on the ground truth (0.8), whereas mass is al
 Why is this the case? 
 """
 
+# ╔═╡ c4854f0d-57b4-4d30-884f-e6273c416d9c
+md"""
+## Comparing two scenes
+
+With the ability to infer physical latents, let's revisit the two scenes we started with, and see if our model infers distinct latent distributions.
+"""
+
+# ╔═╡ ccd4c7f1-a832-448a-8a8c-aa6933117c33
+gif(anim, fps = 24)
+
+# ╔═╡ 4067d4bc-991f-4310-bcd6-767838fdae7e
+gif(anim2, fps = 24)
+
 # ╔═╡ Cell order:
 # ╟─71eb1272-37f5-48db-b516-8e5bdbac8d7e
 # ╟─4624cb2b-5767-4899-8991-560b74d10177
@@ -806,9 +821,9 @@ Why is this the case?
 # ╠═7d8d2ef3-6053-49cf-8a2a-dcacbdb704de
 # ╟─143ccaa8-fe81-429b-aa51-c34b65e827f0
 # ╟─6289ed15-e159-4760-b748-1228cf919bfd
-# ╟─fd43db42-e095-449a-a41b-80b5656ca2ed
+# ╠═fd43db42-e095-449a-a41b-80b5656ca2ed
 # ╟─7391bc8c-0af6-4e71-8634-7c987a1cb13f
-# ╟─87b0cfec-94a5-4ab7-97dd-bf8de0bf52b1
+# ╠═87b0cfec-94a5-4ab7-97dd-bf8de0bf52b1
 # ╟─2126a158-d8e6-4035-8115-6a8516bf0d12
 # ╟─0ba6a7ef-fd6c-4f80-a611-c4774a1767b4
 # ╟─7999589d-531f-4552-a490-7445657d3d2c
@@ -844,7 +859,7 @@ Why is this the case?
 # ╟─4588488f-83c8-4880-9290-463c7c7b0b9f
 # ╟─bd481c82-99c7-44aa-b9c7-11dacb231070
 # ╟─5df4fbbb-f483-428b-8e2c-f09a7b69a0ca
-# ╟─e21377fc-d136-4cac-9914-299acac72109
+# ╠═e21377fc-d136-4cac-9914-299acac72109
 # ╠═db29e242-5029-48be-a76c-b0868060cc1c
 # ╟─733276b9-7f00-432c-bf7e-fb9e8058892d
 # ╟─8a605295-3865-4fca-bef0-ca9172d3882e
@@ -858,3 +873,6 @@ Why is this the case?
 # ╟─fa120fc0-9193-4c88-a80f-e4fea8a5827a
 # ╟─dfc169c5-c89d-487f-af59-3e2b2c9a7277
 # ╟─72319312-100b-4053-aafa-4ba20acf4998
+# ╠═c4854f0d-57b4-4d30-884f-e6273c416d9c
+# ╟─ccd4c7f1-a832-448a-8a8c-aa6933117c33
+# ╟─4067d4bc-991f-4310-bcd6-767838fdae7e
