@@ -571,7 +571,7 @@ Let's return to the main question: How can we infer the physical latents of the 
 
 Now that we have implemented a generative model, by the [Bayes' theorem](https://en.wikipedia.org/wiki/Bayes'_theorem) we can "invert" its forward conditional distributions to get an approximation of the posterior $Pr(\vec{S} \mid \vec{X})$
 
-Let's generate a trajectory, and extract its noisy positions. These will serve as our observations. Take note of the ground truth latents for mass and restitution - we will ultimately want to compare the inferences of our model to these values.
+Let's look at our first simulation, and extract noisy positions. These will serve as our observations. Take note of the ground truth latents for mass and restitution (1.0 and 0.8, respectively)- we will ultimately want to compare the inferences of our model to these values.
 """
 
 # ╔═╡ e21377fc-d136-4cac-9914-299acac72109
@@ -633,6 +633,8 @@ md"""
 Let's start with the `proposal` function. This gets used during the rejuvination phase of the particle filter.
 
 The function takes a trace of the model and draws a sample for mass and resitution around the current guess in the trace. 
+
+More formally, the <TODO:EQUATIONS HERE>
 
 Note that the proposal uses a truncated normal distribution to prevent certain values that would not make sense in the current context.
 """
@@ -729,10 +731,12 @@ end
 # ╔═╡ f7ef47b3-1c52-4e8f-a4b4-7ef2a4bf83f1
 md"""
 ### Inference Results
+
+Now let's run the particle fitler with 20 particles (and 2 rejuvination moves per particle / step) across each of the 60 observations.
 """
 
 # ╔═╡ ba80f8f7-afb7-4ecb-94d0-904c2a777512
-result = inference_procedure(gargs, observations); #should take a few seconds
+result = inference_procedure(gargs, observations); #should take a 5-15 seconds
 
 # ╔═╡ 87aa3c1c-4ce4-4b6f-ab6a-7b889c526e96
 md"""
@@ -763,7 +767,8 @@ begin
 	    (mass, restitution)
 	end
 	
-	function plot_latents(traces::Vector{<:Gen.Trace})
+	function plot_latents(traces::Vector{<:Gen.Trace}; gt_mass = 1.0,
+						 gt_res = 0.8)
 	    mass, restitution = get_latents(traces)
 	    res_plt = histogram(
 	        restitution, title="Pr(restitution | Xs)", 
@@ -771,12 +776,12 @@ begin
 			xlims = (0., 1.0),
 			bins=3
 	    )
-	    vline!(res_plt, [0.8], label = "gt", linewidth=3) 
+	    vline!(res_plt, [gt_res], label = "gt", linewidth=3) 
 	    mass_plt = histogram(
 	        mass, title="Pr(mass | Xs)",
 	        xlabel="mass", bins=10, label="traces"
 	    )
-	    vline!(mass_plt, [1.0], label = "gt", linewidth=3) 
+	    vline!(mass_plt, [gt_mass], label = "gt", linewidth=3) 
 	    return plot(res_plt, mass_plt)
 	end
 	
@@ -788,21 +793,68 @@ end
 md"""
 Note how resitution is almost dead on the ground truth (0.8), whereas mass is all over the place (the ground truth was 1.0). 
 
-Why is this the case? 
+Why is this the case? (Discuss amongst yourselves)
 """
 
 # ╔═╡ c4854f0d-57b4-4d30-884f-e6273c416d9c
 md"""
 ## Comparing two scenes
 
-With the ability to infer physical latents, let's revisit the two scenes we started with, and see if our model infers distinct latent distributions.
+Ok, we inferred a posterior distribution over physical latents for the first scene - let's now do the same for the second. As a reminder, here is the trajecotory for the second scene.
 """
 
-# ╔═╡ ccd4c7f1-a832-448a-8a8c-aa6933117c33
-gif(anim, fps = 24)
+# ╔═╡ b2d3f1ba-d1f6-4de8-bbb0-9e9f6d65e7e2
+begin
+	# First, let's generate a scene with a specific mass and restitution 
+	# Our goal is to generate a simulated observation that we can work with
+	gt_latents2 = choicemap(
+	    (:latents => 1 => :restitution, 0.5), 
+	    (:latents => 1 => :mass, 1.0)
+	)
+	gt2 = first(generate(model, gargs, gt_latents2));
+	gt_choices2 = get_choices(gt2)
+		
+	# one set of observations per time step
+	# (notice that these do not contain gt latents)
+	observations2 = Vector{Gen.ChoiceMap}(undef, t)
+	for i = 1:t
+	    cm = choicemap()
+	    addr = :states => i => :positions
+	    set_submap!(cm, addr, get_submap(gt_choices2, addr))
+	    observations2[i] = cm
+	end
+	
+	gif(animate_trace(gt2), fps=24)
+end
 
-# ╔═╡ 4067d4bc-991f-4310-bcd6-767838fdae7e
-gif(anim2, fps = 24)
+# ╔═╡ a300228c-df39-4f13-b47c-28a797dcb43a
+result2 = inference_procedure(gargs, observations2); #should take a 5-15 seconds
+
+# ╔═╡ 64e76a4f-b9ac-4899-b1d9-9e14ce9ae540
+gif(animate_traces(result2), fps=24)
+
+# ╔═╡ 4062274b-f208-460e-9efa-15ef770ee13b
+plot_latents(result2; gt_res = 0.5)
+
+# ╔═╡ 0ce787c6-3e8e-428d-9964-9d9ebb7262fd
+md"""
+And to remind ourselves, here is scene 1
+"""
+
+# ╔═╡ 34a2d209-5280-45e0-ba43-b5d6eb01a48b
+plot_latents(result)
+
+# ╔═╡ f064467b-b9ff-4938-84f0-8df7ef7d42dd
+md"""
+Look at that! Notice how the model explains the difference in trajectory do to differences in restitution, with the second scene having lower bounciness.
+"""
+
+# ╔═╡ 46d392ce-dea6-4a99-9a02-6c7e97548b9f
+md"""
+## Summary and Future Reading
+
+TBD
+"""
 
 # ╔═╡ Cell order:
 # ╟─71eb1272-37f5-48db-b516-8e5bdbac8d7e
@@ -821,9 +873,9 @@ gif(anim2, fps = 24)
 # ╠═7d8d2ef3-6053-49cf-8a2a-dcacbdb704de
 # ╟─143ccaa8-fe81-429b-aa51-c34b65e827f0
 # ╟─6289ed15-e159-4760-b748-1228cf919bfd
-# ╠═fd43db42-e095-449a-a41b-80b5656ca2ed
+# ╟─fd43db42-e095-449a-a41b-80b5656ca2ed
 # ╟─7391bc8c-0af6-4e71-8634-7c987a1cb13f
-# ╠═87b0cfec-94a5-4ab7-97dd-bf8de0bf52b1
+# ╟─87b0cfec-94a5-4ab7-97dd-bf8de0bf52b1
 # ╟─2126a158-d8e6-4035-8115-6a8516bf0d12
 # ╟─0ba6a7ef-fd6c-4f80-a611-c4774a1767b4
 # ╟─7999589d-531f-4552-a490-7445657d3d2c
@@ -835,7 +887,7 @@ gif(anim2, fps = 24)
 # ╟─de7092e7-5a74-4826-ab1a-1cd5ccb2420f
 # ╟─2768f6b2-d3c4-4f88-bd9c-22966014a32b
 # ╠═1b474329-36bd-410d-adf4-230e30f53605
-# ╠═40ea2b25-12cd-4f31-8340-0cb25ae3da16
+# ╟─40ea2b25-12cd-4f31-8340-0cb25ae3da16
 # ╟─bf0f6ac0-82f1-4927-826a-7beabd0f81dd
 # ╠═8d264def-de29-4fce-9925-f632cecae061
 # ╟─bbdf7d87-336b-48c5-a8bd-33d8423daf8e
@@ -859,9 +911,9 @@ gif(anim2, fps = 24)
 # ╟─4588488f-83c8-4880-9290-463c7c7b0b9f
 # ╟─bd481c82-99c7-44aa-b9c7-11dacb231070
 # ╟─5df4fbbb-f483-428b-8e2c-f09a7b69a0ca
-# ╠═e21377fc-d136-4cac-9914-299acac72109
+# ╟─e21377fc-d136-4cac-9914-299acac72109
 # ╟─db29e242-5029-48be-a76c-b0868060cc1c
-# ╟─733276b9-7f00-432c-bf7e-fb9e8058892d
+# ╠═733276b9-7f00-432c-bf7e-fb9e8058892d
 # ╟─8a605295-3865-4fca-bef0-ca9172d3882e
 # ╠═3658e062-b85e-4692-83c4-5846da10b624
 # ╟─f303dbb1-1b59-4712-b197-eb2f6c7c9ad0
@@ -869,10 +921,16 @@ gif(anim2, fps = 24)
 # ╟─f7ef47b3-1c52-4e8f-a4b4-7ef2a4bf83f1
 # ╠═ba80f8f7-afb7-4ecb-94d0-904c2a777512
 # ╟─87aa3c1c-4ce4-4b6f-ab6a-7b889c526e96
-# ╠═c410e103-76ee-4b15-8172-a091c509fe42
+# ╟─c410e103-76ee-4b15-8172-a091c509fe42
 # ╟─fa120fc0-9193-4c88-a80f-e4fea8a5827a
 # ╟─dfc169c5-c89d-487f-af59-3e2b2c9a7277
 # ╟─72319312-100b-4053-aafa-4ba20acf4998
-# ╠═c4854f0d-57b4-4d30-884f-e6273c416d9c
-# ╟─ccd4c7f1-a832-448a-8a8c-aa6933117c33
-# ╟─4067d4bc-991f-4310-bcd6-767838fdae7e
+# ╟─c4854f0d-57b4-4d30-884f-e6273c416d9c
+# ╟─b2d3f1ba-d1f6-4de8-bbb0-9e9f6d65e7e2
+# ╠═a300228c-df39-4f13-b47c-28a797dcb43a
+# ╠═64e76a4f-b9ac-4899-b1d9-9e14ce9ae540
+# ╠═4062274b-f208-460e-9efa-15ef770ee13b
+# ╟─0ce787c6-3e8e-428d-9964-9d9ebb7262fd
+# ╠═34a2d209-5280-45e0-ba43-b5d6eb01a48b
+# ╟─f064467b-b9ff-4938-84f0-8df7ef7d42dd
+# ╟─46d392ce-dea6-4a99-9a02-6c7e97548b9f
