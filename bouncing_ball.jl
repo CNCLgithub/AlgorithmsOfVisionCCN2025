@@ -942,7 +942,7 @@ You've coded a basic model that infers structure-preserving representations usin
 * Explore the official [Gen tutorials](https://www.gen.dev/tutorials/).
 * Explore lab sections of the [Algorithms of the Mind](https://github.com/CNCLgithub/Algorithms-of-the-Mind/tree/main/labs) course.
 
-We also appreciate your feedback to make this tutorial better for its future editions: XXX
+We also appreciate your feedback to make this tutorial better for its future editions. Please fill out [this form](https://docs.google.com/forms/d/e/1FAIpQLSeKgA1yWT9QLtD2EtJUgPyoD7I4yyV21r66KRCpeOmuJrO01w/viewform?usp=dialog) if you have a minute. 
 """
 
 # ╔═╡ Cell order:
