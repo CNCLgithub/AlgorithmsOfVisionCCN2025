@@ -9,7 +9,7 @@ using InteractiveUtils
 begin
     import Pkg
     # activate the project environment
-    Pkg.activate(mktempdir())
+    Pkg.activate("AlgorithmsOfVisionCCN2025")
     Pkg.instantiate()
 
 	# Install pybullet via Conda.jl
@@ -752,7 +752,7 @@ Performs particle filter inference with rejuvenation.
 function inference_procedure(gm_args::Tuple,
                              obs::Vector{Gen.ChoiceMap},
                              particles::Int=20,
-							 rejuv_moves::Int=2)
+							 rejuv_moves::Int=1)
     get_args(t) = (t, gm_args[2:3]...)
 
     # initialize particle filter
@@ -878,24 +878,59 @@ end
 # ╔═╡ a300228c-df39-4f13-b47c-28a797dcb43a
 result2 = inference_procedure(gargs, observations2); #should take a 5-15 seconds
 
+# ╔═╡ 18051d19-b9a7-45bc-bd3a-e8a590f51cac
+md"""
+And here are the results of inference...
+"""
+
 # ╔═╡ 64e76a4f-b9ac-4899-b1d9-9e14ce9ae540
 gif(animate_traces(result2), fps=24)
 
-# ╔═╡ 4062274b-f208-460e-9efa-15ef770ee13b
-plot_latents(result2; gt_res = 0.5)
-
-# ╔═╡ 0ce787c6-3e8e-428d-9964-9d9ebb7262fd
+# ╔═╡ fad19447-96c0-4cc2-a105-cd768a26c981
 md"""
-And to remind ourselves, here is scene 1
+Looking at the ratio of Sim 1 / Sim 2, we see that the model would be very certain that the ball in the firt simulation is more bouncy than the ball in the second simulation.
 """
 
-# ╔═╡ 34a2d209-5280-45e0-ba43-b5d6eb01a48b
-plot_latents(result)
+# ╔═╡ 7f1f08b6-332f-419f-b0a2-b6b74f36672b
+begin
+		
+	function bootstrap_ratio(latent1, latent2, n = 1000)
+		samples = Vector{Float64}(undef, n)
+		for i = 1:n
+			samples[i] = rand(latent1) / rand(latent2)
+		end
+		return samples
+	end
+	
+	function compare_latents(sim1::Vector{<:Gen.Trace}, sim2::Vector{<:Gen.Trace})
+		    _, restitution1 = get_latents(sim1)
+			_, restitution2 = get_latents(sim2)
+			ratio = bootstrap_ratio(restitution1, restitution2)
+			
+		    res_plt1 = histogram(
+		        restitution1, title="Sim 1: Pr(restitution | Xs)", 
+		        xlabel="restitution", label="traces",
+				xlims = (0., 1.0),
+				bins=3
+		    )
+			res_plt2 = histogram(
+		        restitution2, title="Sim 2: Pr(restitution | Xs)", 
+		        xlabel="restitution", label="traces",
+				xlims = (0., 1.0),
+				bins=3
+		    )
 
-# ╔═╡ f064467b-b9ff-4938-84f0-8df7ef7d42dd
-md"""
-Look at that! Notice how the model explains the difference in trajectory do to differences in restitution, with the second scene having lower bounciness.
-"""
+			ratio_plt =  histogram(
+		        ratio, title="Ratio: Sim 1 / Sim 2", 
+		        xlabel="ratio", label="traces",
+				xlims = (0., 2.25),
+				bins=5
+			)
+		    return plot(res_plt1, res_plt2, ratio_plt)
+		end
+		
+		compare_latents(result, result2)
+end
 
 # ╔═╡ 46d392ce-dea6-4a99-9a02-6c7e97548b9f
 md"""
@@ -991,9 +1026,8 @@ We also appreciate your feedback to make this tutorial better for its future edi
 # ╟─c4854f0d-57b4-4d30-884f-e6273c416d9c
 # ╟─b2d3f1ba-d1f6-4de8-bbb0-9e9f6d65e7e2
 # ╠═a300228c-df39-4f13-b47c-28a797dcb43a
+# ╟─18051d19-b9a7-45bc-bd3a-e8a590f51cac
 # ╠═64e76a4f-b9ac-4899-b1d9-9e14ce9ae540
-# ╠═4062274b-f208-460e-9efa-15ef770ee13b
-# ╟─0ce787c6-3e8e-428d-9964-9d9ebb7262fd
-# ╠═34a2d209-5280-45e0-ba43-b5d6eb01a48b
-# ╟─f064467b-b9ff-4938-84f0-8df7ef7d42dd
+# ╟─fad19447-96c0-4cc2-a105-cd768a26c981
+# ╟─7f1f08b6-332f-419f-b0a2-b6b74f36672b
 # ╟─46d392ce-dea6-4a99-9a02-6c7e97548b9f
